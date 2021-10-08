@@ -1,0 +1,68 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal videogame queue alert</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="opencv.js"></script>
+</head>
+<style>
+    #video {
+        border: 1px solid #999;
+        width: 98%;
+        max-width: 860px;
+    }
+</style>
+<body>
+    <img id="input" src="/mnistinv.png"/>
+    <canvas id="render" width="28" height="28"  style="border:1px solid #d3d3d3;"></canvas>
+    <canvas id="output" width="28" height="28"  style="border:1px solid #d3d3d3;"></canvas>
+    <script>
+        async function runMyModel() {
+            var canvas = document.getElementById("render");
+            var ctx = canvas.getContext("2d");
+            var img = document.getElementById("input");
+            ctx.drawImage(img, 0, 0);
+            let src = cv.imread('render');
+            let dst = new cv.Mat();
+            cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
+            // document.getElementById("output").getContext("2d").drawImage(dst, 0, 0);
+            cv.threshold(dst, dst, 0, 255, cv.THRESH_OTSU | cv.THRESH_TOZERO);
+            let dsize = new cv.Size(28, 28);
+            cv.resize(dst, dst, dsize, 0, 0, cv.INTER_AREA);
+            cv.imshow("output", dst);
+            let normalizedInput = new Float32Array(784);
+            dst.data.forEach((element, index) => {
+                normalizedInput[index] = element / 255.0
+            });
+            // dst.convertTo(normalizedInput, cv.CV, 1.0/255, 0);
+
+            const myOrtSession = await ort.InferenceSession.create(
+                "/mnist-8.onnx"
+            );
+            // generate model input
+            const input0 = new ort.Tensor(
+                normalizedInput, [1,1,28,28], "float32"
+            );
+            // execute the model
+            const outputs = await myOrtSession.run({ Input3: input0 });
+            const softOut = softmax(outputs["Plus214_Output_0"].data);
+            let i = softOut.indexOf(Math.max(...softOut));
+            console.log(i);
+            console.log(outputs["Plus214_Output_0"].data);
+            console.log(softOut);
+        }
+
+        window.onload = function() {
+            runMyModel()
+        }
+
+        function softmax(arr) {
+            return arr.map(function(value,index) { 
+                return Math.exp(value) / arr.map( function(y /*value*/){ return Math.exp(y) } ).reduce( function(a,b){ return a+b })
+            })
+        }
+    </script>
+</body>
+</html>
